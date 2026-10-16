@@ -47,6 +47,7 @@ button:disabled{opacity:.35}
     <div class="buttons">
       <button id="startVR" disabled>Start 360° Tower</button>
       <button id="preview" class="alt">Forhåndsvis i 3D</button>
+      <button id="musicToggle" class="alt">Musikk: PÅ</button>
     </div>
     <div id="status">Tester WebXR …</div>
   </div>
@@ -63,6 +64,7 @@ const menu=document.getElementById('menu');
 const statusEl=document.getElementById('status');
 const startVR=document.getElementById('startVR');
 const previewBtn=document.getElementById('preview');
+const musicToggleBtn=document.getElementById('musicToggle');
 const exitBtn=document.getElementById('exit');
 const scoreEl=document.getElementById('score');
 const linesEl=document.getElementById('lines');
@@ -236,12 +238,28 @@ function placeCell(mesh,col,row,radius=RADIUS){
 
 let board,active,score=0,lines=0,level=1,dropDelay=720,lastDrop=0,gameOver=false;
 let spawnCounter=0;
+let pieceBag=[];
+
+/* Audio state is declared early because reset() can be called before the music
+   function definitions later in the module. */
+let audioCtx=null,master=null,musicOn=false,musicTimer=null;
+let musicEnabled=true;
+
+function refillBag(){
+  pieceBag=['I','J','L','O','S','T','Z'];
+  for(let i=pieceBag.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [pieceBag[i],pieceBag[j]]=[pieceBag[j],pieceBag[i]];
+  }
+}
 
 function randomPiece(){
-  const ks=Object.keys(SHAPES);
-  const type=ks[Math.floor(Math.random()*ks.length)];
+  if(pieceBag.length===0) refillBag();
+  const type=pieceBag.pop();
   const matrix=SHAPES[type].map(r=>[...r]);
-  /* move spawn sector around the full 360 arena */
+
+  /* Brikken kan starte i ulike sektorer rundt arenaen,
+     men selve brikkesettet er klassisk Tetris: I/J/L/O/S/T/Z. */
   const sweep=[0,5,10,15,3,13,8,18];
   const x=(sweep[spawnCounter++%sweep.length]+Math.floor(Math.random()*3))%COLS;
   return{type,matrix,x,y:ROWS-matrix.length};
@@ -290,9 +308,18 @@ function hud(){
   linesEl.textContent=lines;
   levelEl.textContent=level;
 }
+function triggerGameOver(){
+  if(gameOver) return;
+  gameOver=true;
+  stopMusic();
+  flashMessage('GAME OVER');
+  gameOverJingle();
+  hapticPulse(1.0,320);
+}
+
 function spawn(){
   active=randomPiece();
-  if(collision(active)){gameOver=true;flashMessage('GAME OVER');return}
+  if(collision(active)){triggerGameOver();return}
   drawActive();
   pulseSector(active.x);
 }
@@ -301,7 +328,7 @@ function lockPiece(){
     if(!active.matrix[r][c])continue;
     const x=((active.x+c)%COLS+COLS)%COLS;
     const y=active.y+(active.matrix.length-1-r);
-    if(y>=ROWS){gameOver=true;flashMessage('GAME OVER');return}
+    if(y>=ROWS){triggerGameOver();return}
     board[y][x]=active.type;
   }
   synthHit();
@@ -334,7 +361,10 @@ function rotatePiece(){
 function reset(){
   board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
   score=0;lines=0;level=1;dropDelay=720;gameOver=false;spawnCounter=0;
+  pieceBag=[];
+  if(banner){scene.remove(banner);banner=null}
   lockedGroup.clear();activeGroup.clear();ghostGroup.clear();hud();spawn();
+  if(musicEnabled) startMusic();
 }
 
 function clearFullRings(){
@@ -438,7 +468,22 @@ control('↻',0,.13,rotatePiece);
 control('▶',.29,.13,()=>move(1));
 control('▼',-.18,.035,down);
 control('DROP',.18,.035,hardDrop);
-control('RESET',0,-.065,reset);
+control('RESET',-.16,-.065,reset);
+let musicControlMesh=null;
+function refreshMusicControl(){
+  if(!musicControlMesh) return;
+  if(musicControlMesh.material.map) musicControlMesh.material.map.dispose();
+  musicControlMesh.material.map=textureLabel(musicEnabled?'MUSIKK PÅ':'MUSIKK AV');
+  musicControlMesh.material.needsUpdate=true;
+}
+musicControlMesh=new THREE.Mesh(
+  new THREE.PlaneGeometry(.26,.075),
+  new THREE.MeshBasicMaterial({map:textureLabel('MUSIKK PÅ'),transparent:true})
+);
+musicControlMesh.position.set(.16,-.065,0);
+musicControlMesh.userData.fn=toggleMusic;
+panel.add(musicControlMesh);
+interactive.push(musicControlMesh);
 
 /* ---------- CONTROLLER RAYS ---------- */
 const raycaster=new THREE.Raycaster();
@@ -497,10 +542,13 @@ function hapticPulse(intensity=.6,duration=60){
 }
 
 /* ---------- SYNTH MUSIC + SFX ---------- */
-let audioCtx=null,master=null,musicOn=false,musicTimer=null;
 function ensureAudio(){
   audioCtx ||= new (window.AudioContext||window.webkitAudioContext)();
-  if(!master){master=audioCtx.createGain();master.gain.value=.085;master.connect(audioCtx.destination)}
+  if(!master){
+    master=audioCtx.createGain();
+    master.gain.value=.085;
+    master.connect(audioCtx.destination);
+  }
   audioCtx.resume();
 }
 function tone(freq,dur,when,type='square',gainVal=.11){
@@ -521,7 +569,7 @@ const tune=[
  [note(0,5),.11],[note(2,5),.11],[note(4,5),.22],[note(0,5),.22],[note(2,5),.33],[0,.14]
 ];
 function startMusic(){
-  if(musicOn)return;
+  if(!musicEnabled || musicOn || gameOver)return;
   musicOn=true;ensureAudio();
   const schedule=()=>{
     let at=audioCtx.currentTime+.03;
@@ -544,6 +592,26 @@ function synthClear(n){
   [523.25,659.25,783.99,1046.5].slice(0,Math.min(4,n+1)).forEach((f,i)=>tone(f,.18,t+i*.055,'triangle',.13));
 }
 
+function gameOverJingle(){
+  ensureAudio();
+  const t=audioCtx.currentTime+.02;
+  const notes=[392.00,349.23,311.13,261.63,196.00,130.81];
+  notes.forEach((f,i)=>{
+    tone(f,i<4?.18:.34,t+i*.17,i<4?'square':'triangle',i<4?.12:.16);
+  });
+}
+
+function toggleMusic(){
+  musicEnabled=!musicEnabled;
+  if(musicEnabled){
+    if(!gameOver) startMusic();
+  }else{
+    stopMusic();
+  }
+  musicToggleBtn.textContent='Musikk: '+(musicEnabled?'PÅ':'AV');
+  refreshMusicControl();
+}
+
 /* ---------- XR START ---------- */
 let currentSession=null;
 function beginVR(){
@@ -555,7 +623,7 @@ function beginVR(){
       currentSession=s;
       await renderer.xr.setSession(s);
       menu.style.display='none';exitBtn.style.display='block';
-      startMusic();
+      if(musicEnabled) startMusic();
       s.addEventListener('end',()=>{
         currentSession=null;menu.style.display='block';exitBtn.style.display='none';stopMusic();
       },{once:true});
@@ -571,6 +639,8 @@ previewBtn.addEventListener('click',()=>{
   camera.position.set(0,1.55,.1);
 });
 
+musicToggleBtn.addEventListener('click',toggleMusic);
+
 /* Keyboard fallback */
 addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft')move(-1);
@@ -579,6 +649,7 @@ addEventListener('keydown',e=>{
   else if(e.key==='ArrowUp'||e.key===' ')rotatePiece();
   else if(e.key.toLowerCase()==='x')hardDrop();
   else if(e.key.toLowerCase()==='r')reset();
+  else if(e.key.toLowerCase()==='m')toggleMusic();
 });
 
 addEventListener('resize',()=>{
