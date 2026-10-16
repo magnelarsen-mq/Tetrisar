@@ -1,78 +1,437 @@
 <!DOCTYPE html>
 <html lang="no">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>Star Tetris</title>
-<style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02030a;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#f4fbff}#stars{position:fixed;inset:0;width:100%;height:100%;z-index:0}#nebula{position:fixed;inset:-20%;z-index:1;pointer-events:none;background:radial-gradient(circle at 20% 35%,rgba(67,66,255,.18),transparent 30%),radial-gradient(circle at 75% 30%,rgba(0,210,255,.12),transparent 28%),radial-gradient(circle at 65% 80%,rgba(190,50,255,.12),transparent 32%);filter:blur(35px);animation:drift 18s ease-in-out infinite alternate}@keyframes drift{from{transform:translate3d(-2%,0,0) scale(1)}to{transform:translate3d(2%,-2%,0) scale(1.05)}}#wrap{position:relative;z-index:2;width:100%;height:100%;display:grid;place-items:center;padding:18px}#gameShell{display:grid;grid-template-columns:minmax(280px,360px) 170px;gap:18px;align-items:start}#boardWrap{padding:14px;border:1px solid rgba(125,225,255,.28);background:linear-gradient(180deg,rgba(13,21,51,.82),rgba(6,10,25,.78));border-radius:20px;box-shadow:0 0 30px rgba(50,180,255,.12),inset 0 0 30px rgba(120,220,255,.04);backdrop-filter:blur(12px)}#board{display:block;width:min(68vw,340px);height:auto;aspect-ratio:1/2;border-radius:10px;background:rgba(1,4,12,.7);box-shadow:inset 0 0 20px rgba(0,0,0,.55)}.side{display:flex;flex-direction:column;gap:12px}.card{background:rgba(8,12,30,.72);border:1px solid rgba(125,225,255,.22);border-radius:16px;padding:14px;box-shadow:0 0 22px rgba(50,180,255,.08);backdrop-filter:blur(10px)}h1{margin:0 0 6px;font-size:24px;letter-spacing:.06em;text-shadow:0 0 18px rgba(114,230,255,.65)}.label{font-size:11px;opacity:.65;letter-spacing:.14em;text-transform:uppercase;margin-top:7px}.value{font-size:23px;font-weight:800;margin-top:1px}#next{display:block;width:110px;height:110px;margin:auto}#help{font-size:12px;line-height:1.55;opacity:.82}#controls{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:4;display:none;grid-template-columns:repeat(5,54px);gap:7px}#controls button{width:54px;height:54px;border:none;border-radius:14px;background:rgba(230,248,255,.9);color:#08101f;font-size:24px;font-weight:800;box-shadow:0 6px 24px rgba(0,0,0,.28);touch-action:manipulation}#overlay{position:fixed;inset:0;z-index:6;display:none;align-items:center;justify-content:center;background:rgba(2,3,10,.5);backdrop-filter:blur(4px)}#overlay .box{text-align:center;padding:26px 32px;border-radius:18px;background:rgba(7,12,28,.92);border:1px solid rgba(120,220,255,.28);box-shadow:0 0 35px rgba(100,210,255,.18)}#overlay h2{margin:0 0 8px;font-size:30px;text-shadow:0 0 14px #72e6ff}#restart{margin-top:14px;padding:10px 16px;border:0;border-radius:12px;font-weight:800;cursor:pointer}@media(max-width:720px){#gameShell{grid-template-columns:1fr;gap:10px}.side{display:grid;grid-template-columns:1fr 1fr}.side .card:last-child{display:none}#board{width:min(84vw,330px)}#controls{display:grid}#wrap{padding-bottom:90px}}
-
-#startScreen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at center,rgba(12,24,60,.58),rgba(1,2,8,.88));backdrop-filter:blur(6px)}
-#startPanel{text-align:center;padding:34px 28px;border-radius:24px;background:rgba(6,11,28,.88);border:1px solid rgba(125,225,255,.3);box-shadow:0 0 50px rgba(70,190,255,.18);max-width:360px;width:calc(100% - 36px)}
-#startPanel h2{margin:0 0 8px;font-size:34px;letter-spacing:.08em;text-shadow:0 0 22px rgba(114,230,255,.85)}
-#startPanel p{margin:0 0 20px;opacity:.78;line-height:1.45}
-#startFullscreen{border:0;border-radius:16px;padding:15px 22px;font-size:18px;font-weight:900;cursor:pointer;background:#eefbff;color:#07111f;box-shadow:0 0 26px rgba(114,230,255,.28)}
-#fsToggle{position:fixed;top:14px;right:14px;z-index:10;width:46px;height:46px;border:1px solid rgba(125,225,255,.3);border-radius:14px;background:rgba(7,12,28,.72);color:white;font-size:22px;cursor:pointer;backdrop-filter:blur(8px);box-shadow:0 0 18px rgba(80,200,255,.1)}
-</style>
-
-  <meta name="theme-color" content="#050817">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icon-192.png">
-
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Tetrisar XR</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02030a;font-family:system-ui,Segoe UI,Roboto,sans-serif}
+    canvas{display:block}
+    #ui{
+      position:fixed;inset:0;pointer-events:none;color:#fff;z-index:5;
+    }
+    #topbar{
+      position:absolute;left:14px;top:14px;padding:10px 14px;border-radius:14px;
+      background:rgba(0,0,0,.46);backdrop-filter:blur(8px);font-weight:700;line-height:1.45;
+    }
+    #launcher{
+      position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+      width:min(92vw,520px);padding:24px;border-radius:22px;
+      background:rgba(7,11,27,.92);border:1px solid rgba(120,220,255,.28);
+      box-shadow:0 0 40px rgba(50,180,255,.14);text-align:center;pointer-events:auto;
+    }
+    #launcher h1{margin:0 0 8px;font-size:32px}
+    #launcher p{opacity:.82;line-height:1.45}
+    .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+    button{
+      border:0;border-radius:14px;padding:13px 18px;font-size:16px;font-weight:800;cursor:pointer;
+      background:#eefcff;color:#06101c;box-shadow:0 6px 22px rgba(0,0,0,.25)
+    }
+    button.secondary{background:#151c35;color:#dff7ff;border:1px solid rgba(120,220,255,.28)}
+    #hint{font-size:12px;opacity:.65;margin-top:14px}
+    #exit{
+      position:absolute;right:14px;top:14px;pointer-events:auto;display:none;
+    }
+  </style>
 </head>
 <body>
-
-<div id="startScreen">
-  <div id="startPanel">
-    <h2>STAR TETRIS</h2>
-    <p>Start spillet i fullskjerm for best opplevelse.</p>
-    <button id="startFullscreen">⛶ START FULLSKJERM</button>
+<div id="ui">
+  <div id="topbar">TETRISAR XR<br>Poeng: <span id="score">0</span> · Linjer: <span id="lines">0</span></div>
+  <button id="exit" class="secondary">Avslutt XR</button>
+  <div id="launcher">
+    <h1>TETRISAR XR</h1>
+    <p>Velg passthrough AR eller full 360° VR-stjernemodus. I XR kan du bruke Quest-kontrollerne som laserpekere mot kontrollpanelet.</p>
+    <div class="row">
+      <button id="startAR">Start AR</button>
+      <button id="startVR">Start 360° VR</button>
+    </div>
+    <div class="row">
+      <button id="start2D" class="secondary">Vis vanlig 3D-modus</button>
+    </div>
+    <div id="hint">Quest Browser + HTTPS anbefales. Trigger velger knapper. Venstre joystick flytter brikken, A/X roterer, B/Y hard-dropper.</div>
   </div>
 </div>
-<button id="fsToggle" title="Fullskjerm av/på">⛶</button>
-<canvas id="stars"></canvas><div id="nebula"></div>
-<div id="wrap"><div id="gameShell"><div id="boardWrap"><canvas id="board" width="300" height="600"></canvas></div><div class="side"><div class="card"><h1>STAR TETRIS</h1><div class="label">Poeng</div><div id="score" class="value">0</div><div class="label">Linjer</div><div id="lines" class="value">0</div><div class="label">Nivå</div><div id="level" class="value">1</div></div><div class="card"><div class="label" style="margin-top:0">Neste</div><canvas id="next" width="110" height="110"></canvas></div><div class="card" id="help"><b>Styring</b><br>← → Flytt<br>↓ Mykt fall<br>↑ / Space Roter<br>X Hard drop<br>P Pause<br>R Restart</div></div></div></div>
-<div id="controls"><button data-a="left">◀</button><button data-a="rotate">↻</button><button data-a="down">▼</button><button data-a="right">▶</button><button data-a="drop">⤓</button></div>
-<div id="overlay"><div class="box"><h2 id="overlayTitle">GAME OVER</h2><div id="overlayText"></div><button id="restart">Start på nytt</button></div></div>
-<script>
 
-// Fullscreen controls
-async function toggleFullscreen(){
-  try{
-    if(!document.fullscreenElement){
-      const root=document.documentElement;
-      if(root.requestFullscreen) await root.requestFullscreen();
-      else if(root.webkitRequestFullscreen) root.webkitRequestFullscreen();
-    }else{
-      if(document.exitFullscreen) await document.exitFullscreen();
-      else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
-    }
-  }catch(err){ console.warn('Fullscreen unavailable:',err); }
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+  }
 }
-const startBtn=document.getElementById('startFullscreen');
-const startScreen=document.getElementById('startScreen');
-startBtn.addEventListener('click',async()=>{
-  await toggleFullscreen();
-  startScreen.style.display='none';
-});
-document.getElementById('fsToggle').addEventListener('click',toggleFullscreen);
-document.addEventListener('fullscreenchange',()=>{
-  document.getElementById('fsToggle').textContent=document.fullscreenElement?'⤢':'⛶';
-});
-
-(()=>{const starCanvas=document.getElementById('stars'),sctx=starCanvas.getContext('2d');let stars=[];function resizeStars(){const dpr=Math.min(devicePixelRatio||1,2);starCanvas.width=innerWidth*dpr;starCanvas.height=innerHeight*dpr;starCanvas.style.width=innerWidth+'px';starCanvas.style.height=innerHeight+'px';sctx.setTransform(dpr,0,0,dpr,0,0);const count=Math.max(110,Math.floor(innerWidth*innerHeight/6500));stars=Array.from({length:count},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.6+.25,a:Math.random()*.8+.2,v:Math.random()*.16+.03,tw:Math.random()*Math.PI*2}))}function drawStars(t){sctx.clearRect(0,0,innerWidth,innerHeight);const g=sctx.createLinearGradient(0,0,0,innerHeight);g.addColorStop(0,'#02030b');g.addColorStop(1,'#050817');sctx.fillStyle=g;sctx.fillRect(0,0,innerWidth,innerHeight);for(const s of stars){s.y+=s.v;if(s.y>innerHeight+2){s.y=-2;s.x=Math.random()*innerWidth}const alpha=Math.max(.12,s.a+Math.sin(t*.0015+s.tw)*.18);sctx.beginPath();sctx.arc(s.x,s.y,s.r,0,Math.PI*2);sctx.fillStyle=`rgba(220,240,255,${alpha})`;sctx.fill();if(s.r>1.35){sctx.fillStyle=`rgba(90,210,255,${alpha*.16})`;sctx.fillRect(s.x-4,s.y-.35,8,.7);sctx.fillRect(s.x-.35,s.y-4,.7,8)}}requestAnimationFrame(drawStars)}resizeStars();requestAnimationFrame(drawStars);
-const canvas=document.getElementById('board'),ctx=canvas.getContext('2d'),nextCanvas=document.getElementById('next'),nctx=nextCanvas.getContext('2d');const COLS=10,ROWS=20,CW=canvas.width/COLS,CH=canvas.height/ROWS;const SHAPES={I:[[1,1,1,1]],J:[[1,0,0],[1,1,1]],L:[[0,0,1],[1,1,1]],O:[[1,1],[1,1]],S:[[0,1,1],[1,1,0]],T:[[0,1,0],[1,1,1]],Z:[[1,1,0],[0,1,1]]};const COLORS={I:'#3de6ff',J:'#5577ff',L:'#ff9f3d',O:'#ffe94d',S:'#50ef7f',T:'#cb6cff',Z:'#ff526a'};let board,active,nextPiece,score,lines,level,paused,gameOver,lastDrop;const clone=m=>m.map(r=>[...r]);function randomPiece(){const keys=Object.keys(SHAPES),type=keys[Math.floor(Math.random()*keys.length)],matrix=clone(SHAPES[type]);return{type,matrix,x:Math.floor((COLS-matrix[0].length)/2),y:0}}const rotateMatrix=m=>m[0].map((_,i)=>m.map(row=>row[i]).reverse());function reset(){board=Array.from({length:ROWS},()=>Array(COLS).fill(null));score=0;lines=0;level=1;paused=false;gameOver=false;nextPiece=randomPiece();spawn();lastDrop=performance.now();hideOverlay();updateHUD()}function spawn(){active=nextPiece;active.x=Math.floor((COLS-active.matrix[0].length)/2);active.y=0;nextPiece=randomPiece();if(collides(active,0,0))endGame()}function collides(p,dx=0,dy=0,matrix=p.matrix){for(let r=0;r<matrix.length;r++)for(let c=0;c<matrix[r].length;c++){if(!matrix[r][c])continue;const x=p.x+c+dx,y=p.y+r+dy;if(x<0||x>=COLS||y>=ROWS)return true;if(y>=0&&board[y][x])return true}return false}function lock(){for(let r=0;r<active.matrix.length;r++)for(let c=0;c<active.matrix[r].length;c++)if(active.matrix[r][c]){const y=active.y+r,x=active.x+c;if(y<0){endGame();return}board[y][x]=active.type}clearLines();spawn()}function clearLines(){let cleared=0;for(let y=ROWS-1;y>=0;y--){if(board[y].every(Boolean)){board.splice(y,1);board.unshift(Array(COLS).fill(null));y++;cleared++}}if(cleared){score+=[0,100,300,500,800][cleared]*level;lines+=cleared;level=Math.floor(lines/10)+1;updateHUD()}}const dropDelay=()=>Math.max(95,720-(level-1)*55);function softDrop(){if(paused||gameOver)return;if(!collides(active,0,1)){active.y++;score++;updateHUD()}else lock()}function hardDrop(){if(paused||gameOver)return;let d=0;while(!collides(active,0,1)){active.y++;d++}score+=d*2;updateHUD();lock()}function move(dx){if(paused||gameOver)return;if(!collides(active,dx,0))active.x+=dx}function rotate(){if(paused||gameOver)return;const m=rotateMatrix(active.matrix);if(!collides(active,0,0,m))active.matrix=m;else if(!collides(active,-1,0,m)){active.x--;active.matrix=m}else if(!collides(active,1,0,m)){active.x++;active.matrix=m}}function togglePause(){if(gameOver)return;paused=!paused;if(paused)showOverlay('PAUSE','Trykk P for å fortsette');else{hideOverlay();lastDrop=performance.now()}}function endGame(){gameOver=true;showOverlay('GAME OVER',`Poeng: ${score}<br>Linjer: ${lines}`)}function showOverlay(title,text){document.getElementById('overlayTitle').textContent=title;document.getElementById('overlayText').innerHTML=text;document.getElementById('overlay').style.display='flex'}function hideOverlay(){document.getElementById('overlay').style.display='none'}function updateHUD(){scoreEl.textContent=score;linesEl.textContent=lines;levelEl.textContent=level}const scoreEl=document.getElementById('score'),linesEl=document.getElementById('lines'),levelEl=document.getElementById('level');function drawCell(c,x,y,size,color,ghost=false){const pad=2;c.save();c.globalAlpha=ghost?.23:1;c.fillStyle=color;c.shadowColor=color;c.shadowBlur=ghost?0:12;c.fillRect(x*size+pad,y*size+pad,size-pad*2,size-pad*2);c.shadowBlur=0;const grad=c.createLinearGradient(x*size,y*size,(x+1)*size,(y+1)*size);grad.addColorStop(0,'rgba(255,255,255,.40)');grad.addColorStop(.45,'rgba(255,255,255,.05)');grad.addColorStop(1,'rgba(0,0,0,.24)');c.fillStyle=grad;c.fillRect(x*size+pad,y*size+pad,size-pad*2,size-pad*2);c.strokeStyle='rgba(255,255,255,.18)';c.strokeRect(x*size+pad+.5,y*size+pad+.5,size-pad*2-1,size-pad*2-1);c.restore()}function ghostY(){let y=active.y;while(!collides({...active,y},0,1))y++;return y}function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='rgba(100,220,255,.09)';ctx.lineWidth=1;for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*CW,0);ctx.lineTo(x*CW,canvas.height);ctx.stroke()}for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*CH);ctx.lineTo(canvas.width,y*CH);ctx.stroke()}for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(board[y][x])drawCell(ctx,x,y,CW,COLORS[board[y][x]]);if(!gameOver){const gy=ghostY();for(let r=0;r<active.matrix.length;r++)for(let c=0;c<active.matrix[r].length;c++)if(active.matrix[r][c])drawCell(ctx,active.x+c,gy+r,CW,COLORS[active.type],true);for(let r=0;r<active.matrix.length;r++)for(let c=0;c<active.matrix[r].length;c++)if(active.matrix[r][c])drawCell(ctx,active.x+c,active.y+r,CW,COLORS[active.type])}}function drawNext(){nctx.clearRect(0,0,nextCanvas.width,nextCanvas.height);const m=nextPiece.matrix,size=23,ox=(nextCanvas.width-m[0].length*size)/2/size,oy=(nextCanvas.height-m.length*size)/2/size;for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++)if(m[r][c])drawCell(nctx,ox+c,oy+r,size,COLORS[nextPiece.type])}function loop(t){if(!paused&&!gameOver&&t-lastDrop>dropDelay()){lastDrop=t;if(!collides(active,0,1))active.y++;else lock()}drawBoard();drawNext();requestAnimationFrame(loop)}addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key))e.preventDefault();if(e.key==='ArrowLeft')move(-1);else if(e.key==='ArrowRight')move(1);else if(e.key==='ArrowDown')softDrop();else if(e.key==='ArrowUp'||e.key===' ')rotate();else if(e.key.toLowerCase()==='x')hardDrop();else if(e.key.toLowerCase()==='p')togglePause();else if(e.key.toLowerCase()==='r')reset()},{passive:false});document.querySelectorAll('#controls button').forEach(btn=>btn.addEventListener('pointerdown',e=>{e.preventDefault();const a=btn.dataset.a;if(a==='left')move(-1);if(a==='right')move(1);if(a==='down')softDrop();if(a==='rotate')rotate();if(a==='drop')hardDrop()}));document.getElementById('restart').onclick=reset;addEventListener('resize',resizeStars);reset();requestAnimationFrame(loop)})();
 </script>
 
-<script>
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+<script type="module">
+import * as THREE from 'three';
+import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+
+const COLS=10, ROWS=20, CELL=.04;
+const BOARD_W=COLS*CELL, BOARD_H=ROWS*CELL;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,50);
+camera.position.set(0,1.6,1.2);
+
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.xr.enabled=true;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x334466,2.0));
+const key=new THREE.DirectionalLight(0xffffff,2);
+key.position.set(2,4,2);scene.add(key);
+
+const rig=new THREE.Group();
+scene.add(rig);
+rig.add(camera);
+
+let xrMode='none';
+let session=null;
+
+// ---------- 360 STARFIELD ----------
+const starsGeo=new THREE.BufferGeometry();
+const starPos=[];
+for(let i=0;i<1800;i++){
+  const r=THREE.MathUtils.randFloat(10,32);
+  const u=Math.random(),v=Math.random();
+  const theta=2*Math.PI*u, phi=Math.acos(2*v-1);
+  starPos.push(
+    r*Math.sin(phi)*Math.cos(theta),
+    r*Math.cos(phi),
+    r*Math.sin(phi)*Math.sin(theta)
+  );
+}
+starsGeo.setAttribute('position',new THREE.Float32BufferAttribute(starPos,3));
+const stars=new THREE.Points(starsGeo,new THREE.PointsMaterial({
+  color:0xffffff,size:.035,sizeAttenuation:true,transparent:true,opacity:.9
+}));
+stars.visible=false; scene.add(stars);
+
+const nebula=new THREE.Mesh(
+  new THREE.SphereGeometry(24,32,16),
+  new THREE.MeshBasicMaterial({
+    color:0x08122d,side:THREE.BackSide,transparent:true,opacity:.88
+  })
+);
+nebula.visible=false; scene.add(nebula);
+
+// ---------- TETRIS BOARD ----------
+const boardRoot=new THREE.Group();
+boardRoot.position.set(-BOARD_W/2,1.22,-1.0);
+scene.add(boardRoot);
+
+const back=new THREE.Mesh(
+  new THREE.PlaneGeometry(BOARD_W+.06,BOARD_H+.06),
+  new THREE.MeshBasicMaterial({color:0x050914,transparent:true,opacity:.72,side:THREE.DoubleSide})
+);
+back.position.set(BOARD_W/2-CELL/2,BOARD_H/2-CELL/2,-.035);
+boardRoot.add(back);
+
+const border=new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.PlaneGeometry(BOARD_W+.065,BOARD_H+.065)),
+  new THREE.LineBasicMaterial({color:0x66eaff})
+);
+border.position.copy(back.position);border.position.z=-.03;boardRoot.add(border);
+
+const gridMat=new THREE.LineBasicMaterial({color:0x8adfff,transparent:true,opacity:.12});
+for(let x=0;x<=COLS;x++){
+  const gx=x*CELL-CELL/2;
+  boardRoot.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(gx,-CELL/2,0),new THREE.Vector3(gx,BOARD_H-CELL/2,0)]),
+    gridMat
+  ));
+}
+for(let y=0;y<=ROWS;y++){
+  const gy=y*CELL-CELL/2;
+  boardRoot.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-CELL/2,gy,0),new THREE.Vector3(BOARD_W-CELL/2,gy,0)]),
+    gridMat
+  ));
+}
+
+const colors={I:0x35d7ff,J:0x5577ff,L:0xff9b32,O:0xffde3d,S:0x4dde77,T:0xc65cff,Z:0xff4c5c};
+const shapes={
+  I:[[1,1,1,1]],J:[[1,0,0],[1,1,1]],L:[[0,0,1],[1,1,1]],
+  O:[[1,1],[1,1]],S:[[0,1,1],[1,1,0]],T:[[0,1,0],[1,1,1]],Z:[[1,1,0],[0,1,1]]
+};
+const boxGeo=new THREE.BoxGeometry(CELL*.9,CELL*.9,CELL*.5);
+const activeGroup=new THREE.Group(), lockedGroup=new THREE.Group();
+boardRoot.add(lockedGroup,activeGroup);
+
+let board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+let active=null,score=0,lines=0,dropMs=650,lastDrop=0,gameOver=false;
+
+function matFor(type,ghost=false){
+  return new THREE.MeshStandardMaterial({
+    color:colors[type],transparent:ghost,opacity:ghost?.22:1,
+    emissive:ghost?0x000000:colors[type],emissiveIntensity:ghost?0:.12,
+    roughness:.35,metalness:.08
   });
 }
-</script>
+function randomPiece(){
+  const ks=Object.keys(shapes),type=ks[Math.floor(Math.random()*ks.length)];
+  const matrix=shapes[type].map(r=>[...r]);
+  return{type,matrix,x:Math.floor((COLS-matrix[0].length)/2),y:ROWS-matrix.length};
+}
+function rotateM(m){return m[0].map((_,i)=>m.map(r=>r[i]).reverse())}
+function collides(p,dx=0,dy=0,m=p.matrix){
+  for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++){
+    if(!m[r][c])continue;
+    const x=p.x+c+dx,y=p.y+(m.length-1-r)+dy;
+    if(x<0||x>=COLS||y<0)return true;
+    if(y<ROWS&&board[y][x])return true;
+  }
+  return false;
+}
+function rebuild(){
+  lockedGroup.clear();
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    if(!board[y][x])continue;
+    const b=new THREE.Mesh(boxGeo,matFor(board[y][x]));
+    b.position.set(x*CELL,y*CELL,0);lockedGroup.add(b);
+  }
+}
+function drawActive(){
+  activeGroup.clear();if(!active)return;
+  for(let r=0;r<active.matrix.length;r++)for(let c=0;c<active.matrix[r].length;c++){
+    if(!active.matrix[r][c])continue;
+    const x=active.x+c,y=active.y+(active.matrix.length-1-r);
+    const b=new THREE.Mesh(boxGeo,matFor(active.type));
+    b.position.set(x*CELL,y*CELL,0);activeGroup.add(b);
+  }
+}
+function clearLines(){
+  let n=0;
+  for(let y=0;y<ROWS;y++){
+    if(board[y].every(Boolean)){board.splice(y,1);board.push(Array(COLS).fill(null));y--;n++;}
+  }
+  if(n){
+    score += [0,100,300,500,800][n]||n*250;
+    lines += n; dropMs=Math.max(180,650-lines*12);updateHud();
+  }
+}
+function spawn(){
+  active=randomPiece();
+  if(collides(active)){gameOver=true;statusText('GAME OVER');return;}
+  drawActive();
+}
+function lock(){
+  for(let r=0;r<active.matrix.length;r++)for(let c=0;c<active.matrix[r].length;c++){
+    if(!active.matrix[r][c])continue;
+    const x=active.x+c,y=active.y+(active.matrix.length-1-r);
+    if(y>=ROWS){gameOver=true;statusText('GAME OVER');return;}
+    board[y][x]=active.type;
+  }
+  clearLines();rebuild();spawn();
+}
+function move(dx){
+  if(gameOver)return;
+  if(!collides(active,dx,0)){active.x+=dx;drawActive();}
+}
+function softDrop(){
+  if(gameOver)return;
+  if(!collides(active,0,-1)){active.y--;score++;updateHud();drawActive();}else lock();
+}
+function hardDrop(){
+  if(gameOver)return;
+  let d=0;while(!collides(active,0,-1)){active.y--;d++;}
+  score+=d*2;updateHud();lock();
+}
+function rotatePiece(){
+  if(gameOver)return;
+  const m=rotateM(active.matrix);
+  if(!collides(active,0,0,m)){active.matrix=m;drawActive();}
+  else if(!collides(active,-1,0,m)){active.x--;active.matrix=m;drawActive();}
+  else if(!collides(active,1,0,m)){active.x++;active.matrix=m;drawActive();}
+}
+function resetGame(){
+  board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+  score=0;lines=0;dropMs=650;gameOver=false;updateHud();rebuild();spawn();
+}
+function updateHud(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('lines').textContent=lines;
+}
+spawn();
 
+// ---------- 3D CONTROL PANEL ----------
+const panel=new THREE.Group();
+panel.position.set(BOARD_W/2+.28,1.38,-.98);
+scene.add(panel);
+
+function makeTextTexture(text,bg='#10182c',fg='#ecfbff',w=512,h=160){
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,w,h);
+  x.strokeStyle='#63e7ff';x.lineWidth=5;x.strokeRect(4,4,w-8,h-8);
+  x.fillStyle=fg;x.font='700 54px system-ui';x.textAlign='center';x.textBaseline='middle';
+  x.fillText(text,w/2,h/2);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+const interactive=[];
+function button3D(label,y,action){
+  const mesh=new THREE.Mesh(
+    new THREE.PlaneGeometry(.23,.075),
+    new THREE.MeshBasicMaterial({map:makeTextTexture(label),transparent:true})
+  );
+  mesh.position.set(0,y,0);mesh.userData.action=action;panel.add(mesh);interactive.push(mesh);return mesh;
+}
+button3D('◀  VENSTRE', .18, ()=>move(-1));
+button3D('↻  ROTER',  .085, rotatePiece);
+button3D('▼  NED',   -.01, softDrop);
+button3D('▶  HØYRE', -.105, ()=>move(1));
+button3D('⤓  DROP',  -.20, hardDrop);
+button3D('RESET',    -.295, resetGame);
+
+const modePanel=new THREE.Group();
+modePanel.position.set(0,1.96,-1.0);scene.add(modePanel);
+const modeLabel=new THREE.Mesh(
+  new THREE.PlaneGeometry(.56,.10),
+  new THREE.MeshBasicMaterial({map:makeTextTexture('TETRISAR XR', '#081126','#ffffff',700,150)})
+);
+modePanel.add(modeLabel);
+
+function statusText(txt){
+  modeLabel.material.map.dispose();
+  modeLabel.material.map=makeTextTexture(txt,'#081126','#ffffff',700,150);
+  modeLabel.material.needsUpdate=true;
+}
+
+// ---------- CONTROLLERS ----------
+const controllerModelFactory=new XRControllerModelFactory();
+const raycaster=new THREE.Raycaster();
+const tempMatrix=new THREE.Matrix4();
+const controllers=[];
+let selected=null;
+
+for(let i=0;i<2;i++){
+  const c=renderer.xr.getController(i);
+  c.userData.index=i;
+  c.addEventListener('selectstart',()=>{
+    const hit=intersectController(c);
+    if(hit&&hit.object.userData.action){hit.object.scale.set(1.06,1.06,1.06);selected=hit.object;}
+  });
+  c.addEventListener('selectend',()=>{
+    const hit=intersectController(c);
+    if(selected){selected.scale.set(1,1,1);}
+    if(hit&&hit.object===selected&&hit.object.userData.action)hit.object.userData.action();
+    selected=null;
+  });
+  const line=new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-1)]),
+    new THREE.LineBasicMaterial({color:0x7eefff})
+  );
+  line.name='ray';line.scale.z=3;c.add(line);scene.add(c);
+
+  const grip=renderer.xr.getControllerGrip(i);
+  grip.add(controllerModelFactory.createControllerModel(grip));scene.add(grip);
+
+  controllers.push(c);
+}
+function intersectController(c){
+  tempMatrix.identity().extractRotation(c.matrixWorld);
+  raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
+  raycaster.ray.direction.set(0,0,-1).applyMatrix4(tempMatrix);
+  return raycaster.intersectObjects(interactive,false)[0]||null;
+}
+
+// gamepad support
+const gpState=[{lx:0,ly:0,t:0},{lx:0,ly:0,t:0}];
+function pollGamepads(now){
+  for(let i=0;i<controllers.length;i++){
+    const src=renderer.xr.getSession()?.inputSources?.[i];
+    const gp=src?.gamepad;if(!gp)continue;
+    const axes=gp.axes||[];
+    const x=axes.length>=4?axes[2]:(axes[0]||0);
+    const y=axes.length>=4?axes[3]:(axes[1]||0);
+
+    if(now-gpState[i].t>170){
+      if(x<-.65){move(-1);gpState[i].t=now;}
+      else if(x>.65){move(1);gpState[i].t=now;}
+      else if(y>.65){softDrop();gpState[i].t=now;}
+    }
+    // Common Quest mappings; guarded to avoid repeats
+    gpState[i].buttons ||= [];
+    gp.buttons.forEach((b,idx)=>{
+      const prev=gpState[i].buttons[idx]||false;
+      if(b.pressed&&!prev){
+        if(idx===4||idx===5) rotatePiece();
+        if(idx===3||idx===1) hardDrop();
+      }
+      gpState[i].buttons[idx]=b.pressed;
+    });
+  }
+}
+
+// ---------- SESSION MANAGEMENT ----------
+const launcher=document.getElementById('launcher');
+const exitBtn=document.getElementById('exit');
+
+async function startXR(mode){
+  if(!navigator.xr){alert('WebXR støttes ikke i denne nettleseren.');return;}
+  try{
+    const supported=await navigator.xr.isSessionSupported(mode);
+    if(!supported){alert(mode==='immersive-ar'?'AR støttes ikke her. Prøv Quest Browser over HTTPS.':'VR støttes ikke her.');return;}
+    const opts= mode==='immersive-ar'
+      ? {requiredFeatures:['local-floor'],optionalFeatures:['hand-tracking']}
+      : {requiredFeatures:['local-floor'],optionalFeatures:['hand-tracking']};
+
+    session=await navigator.xr.requestSession(mode,opts);
+    xrMode=mode;
+    renderer.xr.setReferenceSpaceType('local-floor');
+    await renderer.xr.setSession(session);
+    launcher.style.display='none';exitBtn.style.display='block';
+
+    if(mode==='immersive-ar'){
+      scene.background=null;stars.visible=false;nebula.visible=false;
+      boardRoot.position.set(-BOARD_W/2,1.15,-1.0);
+      panel.position.set(BOARD_W/2+.28,1.36,-.98);
+      modePanel.position.set(0,1.93,-1.0);
+      statusText('AR MODE');
+    }else{
+      scene.background=new THREE.Color(0x02030a);stars.visible=true;nebula.visible=true;
+      boardRoot.position.set(-BOARD_W/2,1.16,-1.35);
+      panel.position.set(BOARD_W/2+.28,1.38,-1.33);
+      modePanel.position.set(0,1.95,-1.35);
+      statusText('360° VR MODE');
+    }
+
+    session.addEventListener('end',()=>{
+      xrMode='none';session=null;launcher.style.display='block';exitBtn.style.display='none';
+      scene.background=new THREE.Color(0x02030a);stars.visible=true;nebula.visible=true;
+      statusText('TETRISAR XR');
+    },{once:true});
+  }catch(e){
+    console.error(e);alert('Kunne ikke starte XR: '+e.message);
+  }
+}
+document.getElementById('startAR').onclick=()=>startXR('immersive-ar');
+document.getElementById('startVR').onclick=()=>startXR('immersive-vr');
+document.getElementById('start2D').onclick=()=>{
+  launcher.style.display='none';stars.visible=true;nebula.visible=true;scene.background=new THREE.Color(0x02030a);
+};
+exitBtn.onclick=()=>session?.end();
+
+// keyboard fallback
+addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft')move(-1);
+  else if(e.key==='ArrowRight')move(1);
+  else if(e.key==='ArrowDown')softDrop();
+  else if(e.key==='ArrowUp'||e.key===' ')rotatePiece();
+  else if(e.key.toLowerCase()==='x')hardDrop();
+  else if(e.key.toLowerCase()==='r')resetGame();
+});
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
+});
+
+renderer.setAnimationLoop((t)=>{
+  if(!gameOver&&t-lastDrop>dropMs){lastDrop=t;if(!collides(active,0,-1)){active.y--;drawActive();}else lock();}
+  if(renderer.xr.isPresenting)pollGamepads(t);
+  stars.rotation.y+=0.00015;
+  renderer.render(scene,camera);
+});
+</script>
 </body>
 </html>
