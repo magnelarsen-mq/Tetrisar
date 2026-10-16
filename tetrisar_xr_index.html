@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Tetrisar XR</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02030a;font-family:system-ui,Segoe UI,Roboto,sans-serif}
+    canvas{display:block}
+    #ui{
+      position:fixed;inset:0;pointer-events:none;color:#fff;z-index:5;
+    }
+    #topbar{
+      position:absolute;left:14px;top:14px;padding:10px 14px;border-radius:14px;
+      background:rgba(0,0,0,.46);backdrop-filter:blur(8px);font-weight:700;line-height:1.45;
+    }
+    #launcher{
+      position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+      width:min(92vw,520px);padding:24px;border-radius:22px;
+      background:rgba(7,11,27,.92);border:1px solid rgba(120,220,255,.28);
+      box-shadow:0 0 40px rgba(50,180,255,.14);text-align:center;pointer-events:auto;
+    }
+    #launcher h1{margin:0 0 8px;font-size:32px}
+    #launcher p{opacity:.82;line-height:1.45}
+    .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+    button{
+      border:0;border-radius:14px;padding:13px 18px;font-size:16px;font-weight:800;cursor:pointer;
+      background:#eefcff;color:#06101c;box-shadow:0 6px 22px rgba(0,0,0,.25)
+    }
+    button.secondary{background:#151c35;color:#dff7ff;border:1px solid rgba(120,220,255,.28)}
+    #hint{font-size:12px;opacity:.65;margin-top:14px}
+    #exit{
+      position:absolute;right:14px;top:14px;pointer-events:auto;display:none;
+    }
+  </style>
+</head>
+<body>
+<div id="ui">
+  <div id="topbar">TETRISAR XR<br>Poeng: <span id="score">0</span> · Linjer: <span id="lines">0</span></div>
+  <button id="exit" class="secondary">Avslutt XR</button>
+  <div id="launcher">
+    <h1>TETRISAR XR</h1>
+    <p>Velg passthrough AR eller full 360° VR-stjernemodus. I XR kan du bruke Quest-kontrollerne som laserpekere mot kontrollpanelet.</p>
+    <div class="row">
+      <button id="startAR">Start AR</button>
+      <button id="startVR">Start 360° VR</button>
+    </div>
+    <div class="row">
+      <button id="start2D" class="secondary">Vis vanlig 3D-modus</button>
+    </div>
+    <div id="hint">Quest Browser + HTTPS anbefales. Trigger velger knapper. Venstre joystick flytter brikken, A/X roterer, B/Y hard-dropper.</div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+
+const COLS=10, ROWS=20, CELL=.04;
+const BOARD_W=COLS*CELL, BOARD_H=ROWS*CELL;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,50);
+camera.position.set(0,1.6,1.2);
+
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.xr.enabled=true;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x334466,2.0));
+const key=new THREE.DirectionalLight(0xffffff,2);
+key.position.set(2,4,2);scene.add(key);
+
+const rig=new THREE.Group();
+scene.add(rig);
+rig.add(camera);
+
+let xrMode='none';
+let session=null;
+
+// ---------- 360 STARFIELD ----------
+const starsGeo=new THREE.BufferGeometry();
+const starPos=[];
+for(let i=0;i<1800;i++){
+  const r=THREE.MathUtils.randFloat(10,32);
+  const u=Math.random(),v=Math.random();
+  const theta=2*Math.PI*u, phi=Math.acos(2*v-1);
+  starPos.push(
+    r*Math.sin(phi)*Math.cos(theta),
+    r*Math.cos(phi),
+    r*Math.sin(phi)*Math.sin(theta)
+  );
+}
+starsGeo.setAttribute('position',new THREE.Float32BufferAttribute(starPos,3));
+const stars=new THREE.Points(starsGeo,new THREE.PointsMaterial({
+  color:0xffffff,size:.035,sizeAttenuation:true,transparent:true,opacity:.9
+}));
+stars.visible=false; scene.add(stars);
+
+const nebula=new THREE.Mesh(
+  new THREE.SphereGeometry(24,32,16),
+  new THREE.MeshBasicMaterial({
+    color:0x08122d,side:THREE.BackSide,transparent:true,opacity:.88
+  })
+);
+nebula.visible=false; scene.add(nebula);
+
+// ---------- TETRIS BOARD ----------
+const boardRoot=new THREE.Group();
+boardRoot.position.set(-BOARD_W/2,1.22,-1.0);
+scene.add(boardRoot);
+
+const back=new THREE.Mesh(
+  new THREE.PlaneGeometry(BOARD_W+.06,BOARD_H+.06),
+  new THREE.MeshBasicMaterial({color:0x050914,transparent:true,opacity:.72,side:THREE.DoubleSide})
+);
+back.position.set(BOARD_W/2-CELL/2,BOARD_H/2-CELL/2,-.035);
+boardRoot.add(back);
+
+const border=new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.PlaneGeometry(BOARD_W+.065,BOARD_H+.065)),
+  new THREE.LineBasicMaterial({color:0x66eaff})
+);
+border.position.copy(back.position);border.position.z=-.03;boardRoot.add(border);
+
+const gridMat=new THREE.LineBasicMaterial({color:0x8adfff,transparent:true,opacity:.12});
+for(let x=0;x<=COLS;x++){
+  const gx=x*CELL-CELL/2;
+  boardRoot.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(gx,-CELL/2,0),new THREE.Vector3(gx,BOARD_H-CELL/2,0)]),
+    gridMat
+  ));
+}
+for(let y=0;y<=ROWS;y++){
+  const gy=y*CELL-CELL/2;
+  boardRoot.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-CELL/2,gy,0),new THREE.Vector3(BOARD_W-CELL/2,gy,0)]),
+    gridMat
+  ));
+}
+
+const colors={I:0x35d7ff,J:0x5577ff,L:0xff9b32,O:0xffde3d,S:0x4dde77,T:0xc65cff,Z:0xff4c5c};
+const shapes={
+  I:[[1,1,1,1]],J:[[1,0,0],[1,1,1]],L:[[0,0,1],[1,1,1]],
+  O:[[1,1],[1,1]],S:[[0,1,1],[1,1,0]],T:[[0,1,0],[1,1,1]],Z:[[1,1,0],[0,1,1]]
+};
+const boxGeo=new THREE.BoxGeometry(CELL*.9,CELL*.9,CELL*.5);
+const activeGroup=new THREE.Group(), lockedGroup=new THREE.Group();
+boardRoot.add(lockedGroup,activeGroup);
+
+let board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+let active=null,score=0,lines=0,dropMs=650,lastDrop=0,gameOver=false;
+
+function matFor(type,ghost=false){
+  return new THREE.MeshStandardMaterial({
+    color:colors[type],transparent:ghost,opacity:ghost?.22:1,
+    emissive:ghost?0x000000:colors[type],emissiveIntensity:ghost?0:.12,
+    roughness:.35,metalness:.08
+  });
+}
+function randomPiece(){
+  const ks=Object.keys(shapes),type=ks[Math.floor(Math.random()*ks.length)];
+  const matrix=shapes[type].map(r=>[...r]);
+  return{type,matrix,x:Math.floor((COLS-matrix[0].length)/2),y:ROWS-matrix.length};
+}
+function rotateM(m){return m[0].map((_,i)=>m.map(r=>r[i]).reverse())}
+function collides(p,dx=0,dy=0,m=p.matrix){
+  for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++){
+    if(!m[r][c])continue;
+    const x=p.x+c+dx,y=p.y+(m.length-1-r)+dy;
+    if(x<0||x>=COLS||y<0)return true;
+    if(y<ROWS&&board[y][x])return true;
+  }
+  return false;
+}
+function rebuild(){
+  lockedGroup.clear();
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    if(!board[y][x])continue;
+    const b=new THREE.Mesh(boxGeo,matFor(board[y][x]));
+    b.position.set(x*CELL,y*CELL,0);lockedGroup.add(b);
+  }
+}
+function drawActive(){
+  activeGroup.clear();if(!active)return;
+  for(let r=0;r<active.matrix.length;r++)for(let c=0;c<active.matrix[r].length;c++){
+    if(!active.matrix[r][c])continue;
+    const x=active.x+c,y=active.y+(active.matrix.length-1-r);
+    const b=new THREE.Mesh(boxGeo,matFor(active.type));
+    b.position.set(x*CELL,y*CELL,0);activeGroup.add(b);
+  }
+}
+function clearLines(){
+  let n=0;
+  for(let y=0;y<ROWS;y++){
+    if(board[y].every(Boolean)){board.splice(y,1);board.push(Array(COLS).fill(null));y--;n++;}
+  }
+  if(n){
+    score += [0,100,300,500,800][n]||n*250;
+    lines += n; dropMs=Math.max(180,650-lines*12);updateHud();
+  }
+}
+function spawn(){
+  active=randomPiece();
+  if(collides(active)){gameOver=true;statusText('GAME OVER');return;}
+  drawActive();
+}
+function lock(){
+  for(let r=0;r<active.matrix.length;r++)for(let c=0;c<active.matrix[r].length;c++){
+    if(!active.matrix[r][c])continue;
+    const x=active.x+c,y=active.y+(active.matrix.length-1-r);
+    if(y>=ROWS){gameOver=true;statusText('GAME OVER');return;}
+    board[y][x]=active.type;
+  }
+  clearLines();rebuild();spawn();
+}
+function move(dx){
+  if(gameOver)return;
+  if(!collides(active,dx,0)){active.x+=dx;drawActive();}
+}
+function softDrop(){
+  if(gameOver)return;
+  if(!collides(active,0,-1)){active.y--;score++;updateHud();drawActive();}else lock();
+}
+function hardDrop(){
+  if(gameOver)return;
+  let d=0;while(!collides(active,0,-1)){active.y--;d++;}
+  score+=d*2;updateHud();lock();
+}
+function rotatePiece(){
+  if(gameOver)return;
+  const m=rotateM(active.matrix);
+  if(!collides(active,0,0,m)){active.matrix=m;drawActive();}
+  else if(!collides(active,-1,0,m)){active.x--;active.matrix=m;drawActive();}
+  else if(!collides(active,1,0,m)){active.x++;active.matrix=m;drawActive();}
+}
+function resetGame(){
+  board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+  score=0;lines=0;dropMs=650;gameOver=false;updateHud();rebuild();spawn();
+}
+function updateHud(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('lines').textContent=lines;
+}
+spawn();
+
+// ---------- 3D CONTROL PANEL ----------
+const panel=new THREE.Group();
+panel.position.set(BOARD_W/2+.28,1.38,-.98);
+scene.add(panel);
+
+function makeTextTexture(text,bg='#10182c',fg='#ecfbff',w=512,h=160){
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,w,h);
+  x.strokeStyle='#63e7ff';x.lineWidth=5;x.strokeRect(4,4,w-8,h-8);
+  x.fillStyle=fg;x.font='700 54px system-ui';x.textAlign='center';x.textBaseline='middle';
+  x.fillText(text,w/2,h/2);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+const interactive=[];
+function button3D(label,y,action){
+  const mesh=new THREE.Mesh(
+    new THREE.PlaneGeometry(.23,.075),
+    new THREE.MeshBasicMaterial({map:makeTextTexture(label),transparent:true})
+  );
+  mesh.position.set(0,y,0);mesh.userData.action=action;panel.add(mesh);interactive.push(mesh);return mesh;
+}
+button3D('◀  VENSTRE', .18, ()=>move(-1));
+button3D('↻  ROTER',  .085, rotatePiece);
+button3D('▼  NED',   -.01, softDrop);
+button3D('▶  HØYRE', -.105, ()=>move(1));
+button3D('⤓  DROP',  -.20, hardDrop);
+button3D('RESET',    -.295, resetGame);
+
+const modePanel=new THREE.Group();
+modePanel.position.set(0,1.96,-1.0);scene.add(modePanel);
+const modeLabel=new THREE.Mesh(
+  new THREE.PlaneGeometry(.56,.10),
+  new THREE.MeshBasicMaterial({map:makeTextTexture('TETRISAR XR', '#081126','#ffffff',700,150)})
+);
+modePanel.add(modeLabel);
+
+function statusText(txt){
+  modeLabel.material.map.dispose();
+  modeLabel.material.map=makeTextTexture(txt,'#081126','#ffffff',700,150);
+  modeLabel.material.needsUpdate=true;
+}
+
+// ---------- CONTROLLERS ----------
+const controllerModelFactory=new XRControllerModelFactory();
+const raycaster=new THREE.Raycaster();
+const tempMatrix=new THREE.Matrix4();
+const controllers=[];
+let selected=null;
+
+for(let i=0;i<2;i++){
+  const c=renderer.xr.getController(i);
+  c.userData.index=i;
+  c.addEventListener('selectstart',()=>{
+    const hit=intersectController(c);
+    if(hit&&hit.object.userData.action){hit.object.scale.set(1.06,1.06,1.06);selected=hit.object;}
+  });
+  c.addEventListener('selectend',()=>{
+    const hit=intersectController(c);
+    if(selected){selected.scale.set(1,1,1);}
+    if(hit&&hit.object===selected&&hit.object.userData.action)hit.object.userData.action();
+    selected=null;
+  });
+  const line=new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-1)]),
+    new THREE.LineBasicMaterial({color:0x7eefff})
+  );
+  line.name='ray';line.scale.z=3;c.add(line);scene.add(c);
+
+  const grip=renderer.xr.getControllerGrip(i);
+  grip.add(controllerModelFactory.createControllerModel(grip));scene.add(grip);
+
+  controllers.push(c);
+}
+function intersectController(c){
+  tempMatrix.identity().extractRotation(c.matrixWorld);
+  raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
+  raycaster.ray.direction.set(0,0,-1).applyMatrix4(tempMatrix);
+  return raycaster.intersectObjects(interactive,false)[0]||null;
+}
+
+// gamepad support
+const gpState=[{lx:0,ly:0,t:0},{lx:0,ly:0,t:0}];
+function pollGamepads(now){
+  for(let i=0;i<controllers.length;i++){
+    const src=renderer.xr.getSession()?.inputSources?.[i];
+    const gp=src?.gamepad;if(!gp)continue;
+    const axes=gp.axes||[];
+    const x=axes.length>=4?axes[2]:(axes[0]||0);
+    const y=axes.length>=4?axes[3]:(axes[1]||0);
+
+    if(now-gpState[i].t>170){
+      if(x<-.65){move(-1);gpState[i].t=now;}
+      else if(x>.65){move(1);gpState[i].t=now;}
+      else if(y>.65){softDrop();gpState[i].t=now;}
+    }
+    // Common Quest mappings; guarded to avoid repeats
+    gpState[i].buttons ||= [];
+    gp.buttons.forEach((b,idx)=>{
+      const prev=gpState[i].buttons[idx]||false;
+      if(b.pressed&&!prev){
+        if(idx===4||idx===5) rotatePiece();
+        if(idx===3||idx===1) hardDrop();
+      }
+      gpState[i].buttons[idx]=b.pressed;
+    });
+  }
+}
+
+// ---------- SESSION MANAGEMENT ----------
+const launcher=document.getElementById('launcher');
+const exitBtn=document.getElementById('exit');
+
+async function startXR(mode){
+  if(!navigator.xr){alert('WebXR støttes ikke i denne nettleseren.');return;}
+  try{
+    const supported=await navigator.xr.isSessionSupported(mode);
+    if(!supported){alert(mode==='immersive-ar'?'AR støttes ikke her. Prøv Quest Browser over HTTPS.':'VR støttes ikke her.');return;}
+    const opts= mode==='immersive-ar'
+      ? {requiredFeatures:['local-floor'],optionalFeatures:['hand-tracking']}
+      : {requiredFeatures:['local-floor'],optionalFeatures:['hand-tracking']};
+
+    session=await navigator.xr.requestSession(mode,opts);
+    xrMode=mode;
+    renderer.xr.setReferenceSpaceType('local-floor');
+    await renderer.xr.setSession(session);
+    launcher.style.display='none';exitBtn.style.display='block';
+
+    if(mode==='immersive-ar'){
+      scene.background=null;stars.visible=false;nebula.visible=false;
+      boardRoot.position.set(-BOARD_W/2,1.15,-1.0);
+      panel.position.set(BOARD_W/2+.28,1.36,-.98);
+      modePanel.position.set(0,1.93,-1.0);
+      statusText('AR MODE');
+    }else{
+      scene.background=new THREE.Color(0x02030a);stars.visible=true;nebula.visible=true;
+      boardRoot.position.set(-BOARD_W/2,1.16,-1.35);
+      panel.position.set(BOARD_W/2+.28,1.38,-1.33);
+      modePanel.position.set(0,1.95,-1.35);
+      statusText('360° VR MODE');
+    }
+
+    session.addEventListener('end',()=>{
+      xrMode='none';session=null;launcher.style.display='block';exitBtn.style.display='none';
+      scene.background=new THREE.Color(0x02030a);stars.visible=true;nebula.visible=true;
+      statusText('TETRISAR XR');
+    },{once:true});
+  }catch(e){
+    console.error(e);alert('Kunne ikke starte XR: '+e.message);
+  }
+}
+document.getElementById('startAR').onclick=()=>startXR('immersive-ar');
+document.getElementById('startVR').onclick=()=>startXR('immersive-vr');
+document.getElementById('start2D').onclick=()=>{
+  launcher.style.display='none';stars.visible=true;nebula.visible=true;scene.background=new THREE.Color(0x02030a);
+};
+exitBtn.onclick=()=>session?.end();
+
+// keyboard fallback
+addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft')move(-1);
+  else if(e.key==='ArrowRight')move(1);
+  else if(e.key==='ArrowDown')softDrop();
+  else if(e.key==='ArrowUp'||e.key===' ')rotatePiece();
+  else if(e.key.toLowerCase()==='x')hardDrop();
+  else if(e.key.toLowerCase()==='r')resetGame();
+});
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
+});
+
+renderer.setAnimationLoop((t)=>{
+  if(!gameOver&&t-lastDrop>dropMs){lastDrop=t;if(!collides(active,0,-1)){active.y--;drawActive();}else lock();}
+  if(renderer.xr.isPresenting)pollGamepads(t);
+  stars.rotation.y+=0.00015;
+  renderer.render(scene,camera);
+});
+</script>
+</body>
+</html>
